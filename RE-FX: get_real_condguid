@@ -1,0 +1,61 @@
+METHOD get_real_condguid.
+
+" Algorithm for getting real condguid from real estate cashflow (table VICDCFPAY)
+" Standard SAP ERP RE-FX implementation uses a subsequence of conditions (Table VICDCOND) and treats them as linked
+" For cashflow (which has a link to a condition (via CONDGUID)) - standard SAP uses the first GUID of a condition from the subsequence 
+" IMPORTED PARAMETERS
+" io_contract TYPE REF TO if_recn_contract  -> instance of the real estate contract 
+" iv_guid     TYPE        recdcondguid      -> Original condition GUID (the first one in the subsequence)
+" iv_keydate  TYPE        recakeydate       -> date to search for the real GUID
+" RETURNING VALUES
+" rv_guid     TYPE        recdcondguid      -> real condguid
+
+  STATICS:
+    so_buffer TYPE REF TO cl_reca_data_buffer.
+
+  rv_guid = iv_guid.
+
+  IF so_buffer IS NOT BOUND.
+    so_buffer = NEW #( ).
+  ENDIF.
+
+  DATA(lv_id) = |{ iv_guid }/{ iv_keydate }|.
+
+  IF so_buffer->exists( lv_id ).
+    so_buffer->get(
+      EXPORTING
+        id_id  = lv_id
+      IMPORTING
+        ex_data = rv_guid
+      ).
+    RETURN.
+  ENDIF.
+
+  IF io_contract IS NOT BOUND.
+    RETURN.
+  ENDIF.
+
+  io_contract->get_condition_mngr( )->get_list(
+    IMPORTING
+      et_reference = DATA(lt_ref)
+    ).
+
+  DATA(lv_keydate) = reca0_date-min.
+
+  LOOP AT lt_ref INTO DATA(ls_ref)
+    WHERE condguid = iv_guid
+      AND condvalidfrom_ref <= iv_keydate.
+
+    IF ls_ref-condvalidfrom_ref > lv_keydate.
+      lv_keydate = ls_ref-condvalidfrom_ref.
+      rv_guid    = ls_ref-condguid_ref.
+    ENDIF.
+
+  ENDLOOP.
+
+  so_buffer->set(
+    id_id   = lv_id
+    ix_data = rv_guid
+    ).
+
+ENDMETHOD.
