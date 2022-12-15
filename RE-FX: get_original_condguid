@@ -1,0 +1,31 @@
+  METHOD get_original_condguid.
+
+" Algorithm for getting the original condguid for real estate cashflow
+" Standard SAP ERP RE-FX implementation uses a subsequence of conditions (Table VICDCOND) and treats them as linked
+" For cashflow (which has a link to a condition (via CONDGUID)) - standard SAP uses the first GUID of a condition from the subsequence (An Original guid)
+
+" IMPORTED PARAMETERS
+" io_contract TYPE REF TO if_recn_contract  -> instance of the real estate contract 
+" iv_guid     TYPE        recdcondguid      -> guid of the condition 
+" RETURNING VALUES
+" rv_guid     TYPE        recdcondguid      -> original condguid (first in the subsequence)
+
+
+    rv_guid = iv_guid.
+
+    IF io_contract IS NOT BOUND.
+      RETURN.
+    ENDIF.
+
+    io_contract->get_condition_mngr( )->get_list(
+      IMPORTING
+        et_reference = DATA(lt_ref)
+      ).
+
+    TRY .
+        rv_guid = lt_ref[ condguid_ref = iv_guid ]-condguid.
+      CATCH cx_sy_itab_line_not_found.
+        RETURN.
+    ENDTRY.
+
+  ENDMETHOD.
