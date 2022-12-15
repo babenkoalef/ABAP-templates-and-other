@@ -1,6 +1,6 @@
 METHOD get_real_condguid.
 
-" Algorithm for getting real condguid from real estate cashflow (table VICDCFPAY)
+" Algorithm for getting real condguid for real estate cashflow (table VICDCFPAY)
 " Standard SAP ERP RE-FX implementation uses a subsequence of conditions (Table VICDCOND) and treats them as linked
 " For cashflow (which has a link to a condition (via CONDGUID)) - standard SAP uses the first GUID of a condition from the subsequence (An Original guid)
 " IMPORTED PARAMETERS
