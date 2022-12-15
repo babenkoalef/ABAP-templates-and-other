@@ -1,0 +1,88 @@
+/* this SQL-request searches for correction of evaluation flows
+that appeared only in the latest contract evaluation  
+you can change up the dates of the contract evaluation rules activity and creation date
+*/
+
+with proc_latest as ( select p.processguid, p.intreno, p.termno, p.derf, p.terf, p.rerf, p.cefrom 
+					from viceprocess p 
+					where not exists ( select 1 from viceprocess p2
+										where p2.intreno = p.intreno
+											and p2.termno = p.termno 
+											and p2.derf||p2.terf > p.derf||p.terf
+											)
+					) ,
+
+	 proc_before_latest as ( 
+	 						select p.processguid, p.termno, p.intreno, p.derf, p.terf, p.rerf
+	 							from viceprocess p 
+	 							inner join proc_latest pl 
+	 							on pl.intreno = p.intreno
+	 							and pl.termno = p.termno 
+
+	 							where p.derf||p.terf < pl.derf||pl.terf
+	 							and p.processguid <> pl.processguid
+
+	 							and not exists ( select 1 from viceprocess p2
+	 											where p2.derf||p2.terf < pl.derf||pl.terf
+	 											and p2.derf||p2.terf > p.derf||p.terf
+	 											and p2.intreno = p.intreno
+	 											and p2.termno = p.termno
+	 											)
+
+	 						) 
+
+
+select cn.bukrs, cn.recnnr, 
+ce.termno, ce.cerule, ce.validfrom, ce.consbeg, ce.probableend, ce.interestrate, 
+p.cefrom, p.derf, p.terf, p.rerf, 
+oldp.derf prev_derf, oldp.terf prev_terf, oldp.rerf prev_rerf,
+p.processguid,
+oldp.processguid prev_guid,
+ce.assetobjnr, ce.statusrule, ce.statuseval, ce.processbehavior, ce.acctobjnr, 
+
+
+case when cdt.ssolhab = 'S' then cf.bbwhr * -1
+									 else cf.bbwhr
+								end bbwhr, 
+cf.book_flowtype, cdtt.xflowtype
+
+
+from vicerule ce 
+
+inner join vicncn cn 
+on cn.intreno = ce.intreno
+
+inner join proc_latest p 
+on p.intreno = cn.intreno
+and p.termno = ce.termno 
+and p.rerf = 'AEBABENKO'
+and p.derf = '20220101' 
+
+
+inner join proc_before_latest oldp
+on oldp.intreno = cn.intreno
+and oldp.termno = ce.termno 
+
+inner join vicecfrule cf 
+on cf.intreno = p.intreno
+and cf.processguid = p.processguid
+and cf.termno = p.termno 
+and cf.cftype = '4'
+
+inner join tivcdflowtype cdt
+on cdt.flowtype = cf.book_flowtype
+
+inner join tivcdflowtypet cdtt
+on cdtt.flowtype = cdt.flowtype
+and cdtt.spras = 'R'
+
+where ce.validfrom = '20220101'
+and ce.validto = '99991231'
+
+and not exists ( select 1 from vicecfrule cf2
+				where cf2.intreno = cf.intreno
+				and cf2.processguid <> cf.processguid 
+				and cf2.termno = cf.termno
+				and cf2.cfguid = cf.cfguid 
+				and cf2.cftype = '4'
+				)
