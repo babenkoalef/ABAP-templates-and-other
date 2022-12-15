@@ -1,0 +1,139 @@
+/* This SQL request finds evaluations valid from 01.01.2022 and finds evaluation flows
+(asset and correction flows) that appeared in that latest evaluation 
+proc_before_latest is used for information reasons. to understand context of the evaluation.
+*/ 
+
+with proc_latest as ( select p.processguid, p.intreno, p.termno, p.derf, p.terf, p.rerf, p.cefrom 
+					from viceprocess p 
+					where not exists ( select 1 from viceprocess p2
+										where p2.intreno = p.intreno
+											and p2.termno = p.termno 
+											and p2.derf||p2.terf > p.derf||p.terf
+											)
+					) ,
+
+	 proc_before_latest as ( 
+	 						select p.processguid, p.termno, p.intreno, p.derf, p.terf, p.rerf
+	 							from viceprocess p 
+	 							inner join proc_latest pl 
+	 							on pl.intreno = p.intreno
+	 							and pl.termno = p.termno 
+
+	 							where p.derf||p.terf < pl.derf||pl.terf
+	 							and p.processguid <> pl.processguid
+
+	 							and not exists ( select 1 from viceprocess p2
+	 											where p2.derf||p2.terf < pl.derf||pl.terf
+	 											and p2.derf||p2.terf > p.derf||p.terf
+	 											and p2.intreno = p.intreno
+	 											and p2.termno = p.termno
+	 											)
+
+	 						) ,
+
+	 cf_sum_latest_1 as (
+	 						select sum(bbwhr) as total, intreno, termno 
+
+	 						from (
+			 					select 
+			 					case when cdt.ssolhab = 'S' then cf.bbwhr * -1
+									 else cf.bbwhr
+								end bbwhr, 
+			 					p.intreno, p.termno
+			 						from vicecfrule cf 
+			 						
+			 						inner join proc_latest p
+			 						on p.intreno = cf.intreno
+			 						and p.processguid = cf.processguid
+			 						and p.termno = cf.termno
+
+			 						inner join tivcdflowtype cdt
+			 						on cdt.flowtype = cf.book_flowtype
+
+			 						where cf.cftype = '1'
+			 						and not exists ( select 1 from vicecfrule cf2
+			 										where cf2.cfguid = cf.cfguid
+			 										and cf2.intreno = cf.intreno
+			 										and cf2.termno = cf.termno
+			 										and cf2.processguid <> cf.processguid
+			 										)
+
+			 					) s1 
+
+	 						group by s1.intreno, s1.termno
+	 				  ),
+
+
+
+
+
+
+
+	 cf_sum_latest_4 as (
+	 					select sum(bbwhr) as total, intreno, termno 
+
+	 						from (
+			 					select 
+			 					case when cdt.ssolhab = 'S' then cf.bbwhr * -1
+									 else cf.bbwhr
+								end bbwhr, 
+			 					p.intreno, p.termno
+			 						from vicecfrule cf 
+			 						
+			 						inner join proc_latest p
+			 						on p.intreno = cf.intreno
+			 						and p.processguid = cf.processguid
+			 						and p.termno = cf.termno
+
+			 						inner join tivcdflowtype cdt
+			 						on cdt.flowtype = cf.book_flowtype
+
+			 						where cf.cftype = '4'
+			 						and not exists ( select 1 from vicecfrule cf2
+			 										where cf2.cfguid = cf.cfguid
+			 										and cf2.intreno = cf.intreno
+			 										and cf2.termno = cf.termno
+			 										and cf2.processguid <> cf.processguid
+			 										)
+
+			 					) s1 
+
+	 						group by s1.intreno, s1.termno
+	 				  )
+
+
+select cn.bukrs, cn.recnnr, 
+ce.termno, ce.cerule, ce.validfrom, ce.consbeg, ce.probableend, ce.interestrate, 
+p.cefrom, p.derf, p.terf, p.rerf, 
+oldp.derf prev_derf, oldp.terf prev_terf, oldp.rerf prev_rerf,
+p.processguid,
+oldp.processguid prev_guid,
+ce.assetobjnr, ce.statusrule, ce.statuseval, ce.processbehavior, ce.acctobjnr, 
+
+sum1.total as total_1, sum4.total as total_4
+
+
+from vicerule ce 
+
+inner join vicncn cn 
+on cn.intreno = ce.intreno
+
+inner join proc_latest p 
+on p.intreno = cn.intreno
+and p.termno = ce.termno 
+
+inner join proc_before_latest oldp
+on oldp.intreno = cn.intreno
+and oldp.termno = ce.termno 
+
+inner join cf_sum_latest_1 sum1
+on sum1.intreno = cn.intreno
+and sum1.termno = ce.termno
+
+inner join cf_sum_latest_4 sum4 
+on sum4.intreno = cn.intreno
+and sum4.termno = ce.termno
+
+
+where ce.validfrom = '20220101'
+and ce.validto = '99991231'
